@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>地图</title>
+  <script src="./three.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container"></div>
+  <script type="module">
+    import { OrbitControls } from './controls/OrbitControls.js'
+    import { world } from './world.js'
+
+    //世界平面宽高
+    const worldWidth = 20
+    const worldHeight = 16
+
+    //场景
+    const scene = new THREE.Scene();
+    //相机
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 10;
+
+    //渲染器
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor('#ccc')
+
+    const container = document.getElementById('container');
+    container.appendChild(renderer.domElement);
+
+    //坐标轴
+    const axesHelper = new THREE.AxesHelper(3);
+    scene.add(axesHelper);
+
+    //世界平面
+    const planeGeometry = new THREE.PlaneGeometry(worldWidth, worldHeight);
+    const planeMaterial = new THREE.MeshBasicMaterial({ color: '#2B4DD5', side: THREE.DoubleSide });
+    const worldPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+    scene.add(worldPlane);
+
+    worldPlane.position.set(0, 0, -0.1)
+
+    const { features } = world
+    features.forEach(feature => {
+      if (feature.geometry.type === 'Polygon') {
+        const { polygon, border } = createPolygon(feature)
+        scene.add(polygon);
+        scene.add(border);
+      } else {
+        const { multiPolygon, borders } = createMultiPolygon(feature)
+        scene.add(multiPolygon);
+
+        borders.forEach(border => {
+          scene.add(border)
+        })
+      }
+    });
+
+    //控制器
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.5, 0);
+    controls.update();
+    controls.enablePan = true;
+    controls.enableDamping = true;
+    // controls.enableRotate  = false
+
+    function createPolygon(feature) {
+      const { type, coordinates } = feature.geometry
+
+      let points = []
+
+      for (let i = 0; i < coordinates[0].length; i++) {
+        let x = coordinates[0][i][0] / 360 * worldWidth //经度转化位置
+        let y = coordinates[0][i][1] / 180 * worldHeight //纬度转化位置
+
+        let point = new THREE.Vector2(x, y)
+        points.push(point)
+      }
+
+      let shape = new THREE.Shape(points)
+      let polygon = createShapes(shape)
+
+      let border = createLine(points)
+
+      return { polygon, border }
+    }
+
+    function createMultiPolygon(feature) {
+      const { type, coordinates } = feature.geometry
+      let shapes = []
+      let borders = []
+      coordinates.forEach(item => {
+
+        if (item && item.length) {
+          let points = []
+
+          for (let i = 0; i < item[0].length; i++) {
+            let x = item[0][i][0] / 360 * worldWidth //经度转化位置
+            let y = item[0][i][1] / 180 * worldHeight //纬度转化位置
+
+            let point = new THREE.Vector2(x, y)
+            points.push(point)
+          }
+
+          let shape = new THREE.Shape(points)
+          shapes.push(shape)
+
+          let border = createLine(points)
+          borders.push(border)
+        }
+
+      })
+
+      let multiPolygon = createShapes(shapes)
+
+      return { multiPolygon, borders }
+    }
+
+    function createShapes(shape) {
+      let geometry = new THREE.ShapeGeometry(shape);
+      let mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: '#BBDDD6', side: THREE.DoubleSide }));
+      return mesh
+    }
+
+    function createLine(points) {
+      const material = new THREE.LineBasicMaterial({
+        color: '#172D29'
+      });
+
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+
+      const line = new THREE.Line(geometry, material);
+
+      return line
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();  
+  </script>
+
+</body>
+
+</html>
